@@ -28,7 +28,7 @@ library(lubridate) # Biblioteka do funkcji czasowych zawiera w sobie funkcję he
 # w wersji R 3.6 wystarczało umieścić poniższą linijkę kodu na początku skryptu żeby biblioteka here uwzględniała
 # nową przestrzeń roboczą (wd). Jednak od wersji 4.1 nastąpiła jakaś zmiana która sprawia, że biblioteki są zaczytywane
 # zanim ta linijka kodu zadziała, co wymusza stworzenie dodatkowej funkcji umożliwiającej poprawne działanie zarówno
-# w wersji interaktywnej uruchomionej poprzez RStudio jak i w wersji nieinteraktywnej uruchamianie np. poprzez plik
+# w wersji interaktywnej uruchomionej poprzez RStudio jak i w wersji nieinteraktywnej uruchamianej np. poprzez plik
 # wsadowy/batch file
 if(interactive()){setwd(dirname(rstudioapi::getActiveDocumentContext()$path))}
 
