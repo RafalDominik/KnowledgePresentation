@@ -1,6 +1,7 @@
 # W wersji interaktywnej poniższy program musi być uruchomiony poprzez RStudio, funkcje ustalające scieżkę skryptu
 # nie są uniwersalne. Inne działają w RStudio, a inne w konsoli oraz inne przy uruchomieniu nieinteraktywnym.
 # Biblioteki niezbędne do uruchomienia aplikacji
+# rstudioapi
 # here
 # shiny
 # shinyjs
@@ -77,6 +78,7 @@ getmode <- function(v) {
 }
 # Dodatkowa funkcja obsługująca rozwijane mini tabele z opisem poziomu dopasowania, kod HTML
 CallbackJS <- function(number, color) {
+  # Konstrukacja tabelki
   callback <- paste0(
     "var format = function(d) {
       return '<table cellpadding=\"5\" cellspacing=\"0\" border=\"0\" style=\"padding-left:50px;\">' +
@@ -88,6 +90,7 @@ CallbackJS <- function(number, color) {
             "
     )
   }
+  # Obsługa kliknięcia
   callback <- paste0(callback, "'</table>';
     };
     
@@ -115,7 +118,7 @@ InputVariables <- tryCatch(
 
 # Module functions
 # Moduł obsługujący slidery
-# Dopuki nie zostanie zaznaczona odpowiednia opcja slidery są nieaktywne
+# Dopóki nie zostanie zaznaczona odpowiednia opcja slidery są nieaktywne
 SliderForUI_UI <- function(id, values) {
   ns <- NS(id)
   fluidRow(
@@ -256,7 +259,7 @@ ui <- {fluidPage(
       )
     )
   )},
-  h3("Podwójne naciśnięcie na komórkę pozwala ręcznie zmodyfikować jej wartość, przycisk + w każdum wierszu jest interaktywny."),
+  h3("Podwójne naciśnięcie na komórkę pozwala ręcznie zmodyfikować jej wartość, przycisk + w każdum wierszu jest interaktywny. Zera oznaczają brak możliwości dopasowania danych obajśniających do danych objaśnianych."),
   fluidRow(
     DTOutput("OutcomeFitTable")
   )
@@ -347,7 +350,7 @@ server <- function(input, output, session) {
           
           ErrorMessage <- "Nie można pobrać danych wejściowych obliczających"
           
-          # Wersja z połaczeniem JDBC
+          # Wersja z połączeniem JDBC
           # jdbcdrv<-JDBC("oracle.jdbc.OracleDriver", classPath="C:/Users/SpecificUser/Documents/sqldeveloper/sqldeveloper/jdbc/lib/ojdbc6.jar")
           # con <- dbConnect(jdbcdrv, "jdbc:oracle:thin:@//ip:port/ServerName", "login", "password")
           # Income <- dbGetQuery(con, EnterData())
@@ -358,7 +361,7 @@ server <- function(input, output, session) {
           incProgress(1/n2, detail = paste("obróbka danych", paste0(round(m2/n2 * 100, 2), "%")))
           m2 = m2 + 1
           
-          PrimalCalculations <- inner_join(DummyDataToComplete, DummyEnterData, by = c("Region", "Oddział"))
+          PrimalCalculations <- inner_join(Outcome, Income, by = c("Region", "Oddział"))
           
           incProgress(1/n2, detail = paste("obróbka danych", paste0(round(m2/n2 * 100, 2), "%")))
           m2 = m2 + 1
@@ -423,9 +426,13 @@ server <- function(input, output, session) {
           m2 = m2 + 1
           
           # Mniej więcej w tym punkcie powinien wystąpić jakiś model predykcji na bazie dopasowanych danych
-          # ale ten kalkulator to prezentacja tylko wiedzy na temat języka R
+          # ale ten kalkulator to prezentacja bardziej wiedzy na temat języka R
           
           Calculations <- mutate(Calculations, Miesiąc = lubridate::month(Data.Zapadalności))
+          
+          Outcome <- mutate(Outcome, Miesiąc = lubridate::month(Data.Zapadalności)) %>%
+            select("Region", "Oddział", "Miesiąc") %>%
+            distinct()
           
           incProgress(1/n2, detail = paste("obróbka danych", paste0(round(m2/n2 * 100, 2), "%")))
           m2 = m2 + 1
@@ -436,11 +443,16 @@ server <- function(input, output, session) {
           
           Category <- max(Calculations$`Kategoria dopasowania`)
           
+          Calculations <- left_join(Outcome, Calculations, by = c("Region", "Oddział", "Miesiąc")) %>%
+            select("Region", "Oddział", "Miesiąc", "SumKwota", "SumKupujący", "Kategoria dopasowania")
+          
+          Calculations[is.na(Calculations)] <- 0
+          
           incProgress(1/n2, detail = paste("obróbka danych", paste0(round(m2/n2 * 100, 2), "%")))
           
         })
         
-        # Jeżeli chce się przypisać kilka obiektów do danego obiektu reactive nałatwiej wykorzystać listę
+        # Jeżeli chce się przypisać kilka obiektów do danego obiektu reactive najłatwiej wykorzystać listę
         JoyCounting <- vector(mode = "list", length = 2)
         
         JoyCounting[[1]] <- Calculations
@@ -468,7 +480,7 @@ server <- function(input, output, session) {
       incProgress(1/n3, detail = paste("obróbka danych", paste0(round(m3/n3 * 100, 2), "%")))
       m3 = m3 + 1
       
-      
+      # Uwzględnienie zmian wpływów
       if(input$RevenueCalculing){
         incProgress(1/n3, detail = paste("obróbka danych", paste0(round(m3/n3 * 100, 2), "%")))
         m3 = m3 + 1
@@ -498,6 +510,7 @@ server <- function(input, output, session) {
         Calculations <- select(Calculations, names(Calculations)[1:6])
       }
       
+      # Uwzględnienie zmian konsumentów
       if(input$CustomerCalculing){
         incProgress(1/n3, detail = paste("obróbka danych", paste0(round(m3/n3 * 100, 2), "%")))
         m3 = m3 + 1
@@ -524,7 +537,7 @@ server <- function(input, output, session) {
         Calculations <- select(Calculations, names(Calculations)[1:6])
       }
       
-      Calculations <- mutate(Calculations, ŚredniPrzychód = SumKwota/SumKupujący) %>%
+      Calculations <- mutate(Calculations, ŚredniPrzychód = if_else(SumKupujący == 0, 0, SumKwota/SumKupujący)) %>%
         select('Region', 'Oddział', 'Miesiąc', 'ŚredniPrzychód', 'Kategoria dopasowania')
       
       incProgress(1/n3, detail = paste("obróbka danych", paste0(round(m3/n3 * 100, 2), "%")))
@@ -599,7 +612,7 @@ server <- function(input, output, session) {
                            list(targets = 3:26, searchable = F),
                            list(orderable = FALSE, className = 'details-control', targets = 0))
       )
-      # hcl.colors nie obsługuje liczby 1
+      # Paleta w hcl.colors nie obsługuje liczby 1
       ,callback = JS(CallbackJS(JoyCounting2()[[2]], if(JoyCounting2()[[2]] == 1) {
         '#008000'
       } else
